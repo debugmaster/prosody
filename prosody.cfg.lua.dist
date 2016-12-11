@@ -16,6 +16,13 @@
 -- Settings in this section apply to the whole server and are the default settings
 -- for any virtual hosts
 
+-- Prosodyctl looks for this file to find whether Prosody is running.
+-- If you have multiple Prosody daemons running on the same machine,
+-- they must all use different pidfile locations. The pidfile and
+-- daemonization support is provided by the mod_posix module,
+-- so ensure that is loaded in your config.
+pidfile = "/var/run/prosody/prosody.pid"
+
 -- This is a (by default, empty) list of accounts that are admins
 -- for the server. Note that you must create the accounts separately
 -- (see https://prosody.im/doc/creating_accounts for info)
@@ -139,8 +146,10 @@ authentication = "internal_plain"
 -- Logging configuration
 -- For advanced logging see https://prosody.im/doc/logging
 log = {
-	info = "prosody.log"; -- Change 'info' to 'debug' for verbose logging
-	error = "prosody.err";
+	info = "/var/log/prosody/prosody.log"; -- Change 'info' to 'debug' for verbose logging
+	warn = "/var/log/prosody/prosody.wrn";
+	error = "/var/log/prosody/prosody.err";
+	-- debug = "/var/log/prosody/prosody.dbg";
 	-- "*syslog"; -- Uncomment this for logging to syslog
 	-- "*console"; -- Log to the console, useful for debugging with daemonize=false
 }
