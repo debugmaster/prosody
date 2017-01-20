@@ -49,9 +49,9 @@
 #define WITH_MALLINFO
 #endif
 
-#if defined(RFPROC) && defined(EV_SET)
+#if defined(__FreeBSD__) && defined(RFPROC)
 /*
- * On *BSD, calling fork() is equivalent to rfork(RFPROC | RFFDG).
+ * On FreeBSD, calling fork() is equivalent to rfork(RFPROC | RFFDG).
  *
  * RFFDG being set means that the file descriptor table is copied,
  * otherwise it's shared. We want the later, otherwise libevent gets
@@ -779,6 +779,9 @@ int lc_fallocate(lua_State* L) {
 /* Register functions */
 
 int luaopen_util_pposix(lua_State* L) {
+#if (LUA_VERSION_NUM > 501)
+	luaL_checkversion(L);
+#endif
 	luaL_Reg exports[] = {
 		{ "abort", lc_abort },
 

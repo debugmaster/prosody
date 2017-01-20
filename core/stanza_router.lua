@@ -74,19 +74,9 @@ function core_process_stanza(origin, stanza)
 				origin.send(st.error_reply(stanza, "modify", "bad-request", "Missing required 'id' attribute"));
 				return;
 			elseif (st_type == "set" or st_type == "get") and (#stanza.tags ~= 1) then
-				origin.send(st.error_reply(stanza, "modify", "bad-request", "Incorrect number of children for IQ stanz"));
+				origin.send(st.error_reply(stanza, "modify", "bad-request", "Incorrect number of children for IQ stanza"));
 				return;
 			end
-		end
-
-		if not origin.full_jid
-			and not(name == "iq" and st_type == "set" and stanza.tags[1] and stanza.tags[1].name == "bind"
-					and stanza.tags[1].attr.xmlns == "urn:ietf:params:xml:ns:xmpp-bind") then
-			-- authenticated client isn't bound and current stanza is not a bind request
-			if stanza.attr.type ~= "result" and stanza.attr.type ~= "error" then
-				origin.send(st.error_reply(stanza, "auth", "not-authorized")); -- FIXME maybe allow stanzas to account or server
-			end
-			return;
 		end
 
 		-- TODO also, stanzas should be returned to their original state before the function ends

@@ -15,6 +15,8 @@ local t_concat = table.concat;
 local setmetatable = setmetatable;
 local tostring = tostring;
 local pcall = pcall;
+local next = next;
+local pairs = pairs;
 local log = require "util.logger".init("server_epoll");
 local epoll = require "epoll";
 local socket = require "socket";
@@ -470,7 +472,7 @@ local function wrapsocket(client, server, pattern, listeners, tls) -- luasocket 
 		server = server;
 		created = gettime();
 		listeners = listeners;
-		_pattern = pattern or server._pattern;
+		_pattern = pattern or (server and server._pattern);
 		writebuffer = {};
 		tls = tls;
 	}, interface_mt);
@@ -570,6 +572,7 @@ local function wrapclient(conn, addr, port, listeners, pattern, tls)
 	return client;
 end
 
+-- New outgoing TCP connection
 local function addclient(addr, port, listeners, pattern, tls)
 	local conn, err = socket.tcp();
 	if not conn then return conn, err; end
@@ -580,6 +583,7 @@ local function addclient(addr, port, listeners, pattern, tls)
 	return client, conn;
 end
 
+-- Dump all data from one connection into another
 local function link(from, to)
 	from.listeners = setmetatable({
 		onincoming = function (_, data)
@@ -602,15 +606,27 @@ function interface:set_send(new_send)
 	self.send = new_send;
 end
 
+-- Close all connections and servers
+local function closeall()
+	for fd, conn in pairs(fds) do -- luacheck: ignore 213/fd
+		conn:close();
+	end
+end
+
 local quitting = nil;
 
 -- Signal main loop about shutdown via above upvalue
-local function setquitting()
-	quitting = "quitting";
+local function setquitting(quit)
+	if quit then
+		quitting = "quitting";
+		closeall();
+	else
+		quitting = nil;
+	end
 end
 
 -- Main loop
-local function loop()
+local function loop(once)
 	repeat
 		local t = runtimers(cfg.max_wait, cfg.min_wait);
 		local fd, r, w = epoll.wait(t);
@@ -630,7 +646,7 @@ local function loop()
 		elseif r ~= "timeout" then
 			log("debug", "epoll_wait error: %s", tostring(r));
 		end
-	until quitting;
+	until once or (quitting and next(fds) == nil);
 	return quitting;
 end
 
@@ -641,6 +657,7 @@ return {
 	add_task = addtimer;
 	at = at;
 	loop = loop;
+	closeall = closeall;
 	setquitting = setquitting;
 	wrapclient = wrapclient;
 	link = link;
@@ -654,23 +671,23 @@ return {
 		local function onevent(self)
 			local ret = self:callback();
 			if ret == -1 then
-				epoll.ctl("del", fd);
+				self:setflags(false, false);
 			elseif ret then
-				epoll.ctl("mod", fd, mode);
+				self:setflags(mode == "r" or mode == "rw", mode == "w" or mode == "rw");
 			end
 		end
 
-		local conn = {
+		local conn = setmetatable({
+			getfd = function () return fd; end;
 			callback = callback;
 			onreadable = onevent;
 			onwriteable = onevent;
-			close = function ()
+			close = function (self)
+				self:setflags(false, false);
 				fds[fd] = nil;
-				return epoll.ctl("del", fd);
 			end;
-		};
-		fds[fd] = conn;
-		local ok, err = epoll.ctl("add", fd, mode or "r");
+		}, interface_mt);
+		local ok, err = conn:setflags(mode == "r" or mode == "rw", mode == "w" or mode == "rw");
 		if not ok then return ok, err; end
 		return conn;
 	end;
